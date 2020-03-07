@@ -1,5 +1,5 @@
 [package]
-name = "proc_macro_use"
+name = "jbindgen"
 version = "0.1.0"
 authors = ["Jeff Hodges <jmhodges@signal.org>"]
 edition = "2018"
@@ -13,4 +13,4 @@ proc-macro2 = "1.0"
 bindgen = "0.53.1"
 quote = "1.0"
 chrono = "0.4"
-clap = { version = "2", optional = true }
+clap = "2"
