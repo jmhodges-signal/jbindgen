@@ -14,10 +14,10 @@
 //  limitations under the License.
 
 use bindgen::Bindings;
+use clap::{App, Arg};
 use proc_macro2::token_stream::TokenStream;
 use quote::quote;
-use std::io;
-use std::io::Read;
+use std::env;
 use std::io::Write;
 use std::process::{Command, ExitStatus, Stdio};
 use syn::parse::{Parse, ParseStream};
@@ -25,9 +25,11 @@ use syn::punctuated::Punctuated;
 use syn::{FnArg, ForeignItem, ForeignItemFn, ItemForeignMod, Pat, Token};
 
 fn main() -> anyhow::Result<(), anyhow::Error> {
-    let mut buffer = String::new();
-    io::stdin().read_to_string(&mut buffer)?;
-    let bindings = run_bindgen(buffer)?;
+    let args: Vec<_> = env::args().collect();
+
+    let config = parse_args(args)?;
+    let jniimpl_module = config.jniimpl_module;
+    let bindings = run_bindgen(config.header_file, config.clang_args)?;
     let tokens = bindings.to_string().parse::<TokenStream>().map_err(|e| {
         anyhow::Error::msg(format!(
             "parsing rust AST of bindgen output failed: {:?}",
@@ -49,6 +51,7 @@ fn main() -> anyhow::Result<(), anyhow::Error> {
     let uses = quote! {
         use jni::*;
         use jni::sys::*;
+        use #jniimpl_module
     }
     .to_string();
 
@@ -60,6 +63,55 @@ fn main() -> anyhow::Result<(), anyhow::Error> {
 
     run_rustfmt(out)?;
     return Ok(());
+}
+
+#[derive(Default)]
+struct Config {
+    header_file: String,
+    jniimpl_module: String,
+    clang_args: Vec<String>,
+}
+
+fn parse_args(args: Vec<String>) -> anyhow::Result<Config> {
+    let matches = App::new("jbindgen")
+        .about("Generates Rust code from Java JNI headers")
+        .usage("jbindgen [FLAGS] [OPTIONS] <header> -- <clang-args>...")
+        .args(&[
+            Arg::with_name("header")
+                .help("Java JNI C or C++ header")
+                .required(true),
+            Arg::with_name("jniimpl_module")
+                .help(
+                    "module to find the JniImpl struct definition that the generated functions \
+                will expect a matching method on",
+                )
+                .default_value("jniimpl")
+                .required(true),
+            // All positional arguments after the end of options marker, `--`
+            Arg::with_name("clang-args").last(true).multiple(true),
+        ])
+        .get_matches_from(args);
+
+    let header_file = matches
+        .value_of("header")
+        .map(|h| h.to_string())
+        .ok_or(anyhow::Error::msg("header argument wasn't given."))?;
+
+    let jniimpl_module = matches
+        .value_of("jniimpl_module")
+        .map(|m| m.to_string())
+        .ok_or(anyhow::Error::msg("jniimpl_module argument wasn't given."))?;
+
+    let clang_args: Vec<String> = matches
+        .values_of("clang-args")
+        .map(|v| v.map(|s| s.to_string()).collect())
+        .unwrap_or(vec![]);
+
+    return Ok(Config {
+        header_file: header_file,
+        jniimpl_module: jniimpl_module,
+        clang_args: clang_args,
+    });
 }
 
 struct FancyParse {
@@ -86,14 +138,12 @@ impl Parse for FancyParse {
 }
 
 // Runs bindgen and only generate the `Java_` functions.
-fn run_bindgen(c_header_contents: String) -> Result<Bindings, anyhow::Error> {
+fn run_bindgen(header_file: String, clang_args: Vec<String>) -> Result<Bindings, anyhow::Error> {
     return bindgen::builder()
-        .header_contents("rust_jni.h", &c_header_contents)
+        .header(header_file)
         .whitelist_function("Java_.*")
         .with_codegen_config(bindgen::CodegenConfig::FUNCTIONS)
-        // FIXME makes these trailing args
-        .clang_arg("-I/usr/lib/jvm/java-11-openjdk-amd64/include/")
-        .clang_arg("-I/usr/lib/jvm/java-11-openjdk-amd64/include/linux/")
+        .clang_args(clang_args)
         .generate()
         .map_err(|_| anyhow::Error::msg("bindgen failed but won't say how"));
 }
@@ -122,7 +172,7 @@ fn add_func_body(func: ForeignItemFn) -> TokenStream {
     return quote! {
       #[no_mangle]
       #sig {
-        return FakeType{}.#fn_name(#commaed)
+        return JniImpl{}.#fn_name(#commaed)
       }
     };
 }
