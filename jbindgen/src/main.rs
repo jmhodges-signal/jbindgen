@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<(), anyhow::Error> {
         ))
     })?;
 
-    let fancy = syn::parse2::<FancyParse>(tokens)?;
+    let fancy = syn::parse2::<JNIFuncParse>(tokens)?;
 
     let func_defs: Vec<TokenStream> = fancy
         .funcs
@@ -111,11 +111,11 @@ fn parse_args(args: Vec<String>) -> anyhow::Result<Config> {
     });
 }
 
-struct FancyParse {
+struct JNIFuncParse {
     funcs: Vec<ForeignItemFn>,
 }
 
-impl Parse for FancyParse {
+impl Parse for JNIFuncParse {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut funcs: Vec<ForeignItemFn> = vec![];
         while !input.is_empty() {
@@ -130,7 +130,7 @@ impl Parse for FancyParse {
                 .collect();
             funcs.extend(fs);
         }
-        Ok(FancyParse { funcs: funcs })
+        Ok(JNIFuncParse { funcs: funcs })
     }
 }
 
