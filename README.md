@@ -10,6 +10,8 @@ JNI interface that, in turn, call matching methods on a given Rust struct (contr
 Jbindgen's use is similar to `bindgen` with arguments for clang given after a
   `--`. It also expects a `rustfmt` binary in your `PATH`.
 
+The generated rust code depends on the `jni` crate, and uses the `jni::objects` versions of JNI types that include lifetimes where possible.
+
 Usage:
 
 ```
