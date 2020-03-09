@@ -40,16 +40,12 @@ fn main() -> anyhow::Result<(), anyhow::Error> {
     })?;
 
     let funcs = syn::parse2::<JNIFuncParse>(tokens)?.funcs;
-    let includes_methods = funcs
-        .iter()
-        .map(|func| -> Vec<&FnArg> { func.sig.inputs.iter().collect() })
-        .collect::<Vec<_>>()
-        .concat()
-        .iter()
-        .any(|arg| match arg {
+    let includes_methods = funcs.iter().any(|func| {
+        func.sig.inputs.iter().any(|arg| match arg {
             FnArg::Receiver(_) => true,
             _ => false,
-        });
+        })
+    });
     if includes_methods {
         return Err(anyhow::Error::msg(
             "Generated Rust JNI code included a method, which isn't supported",
