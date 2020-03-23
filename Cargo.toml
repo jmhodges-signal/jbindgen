@@ -1,3 +1,4 @@
 [workspace]
 
 members = ["jbindgen"]
+exclude = ["example/mylib"]

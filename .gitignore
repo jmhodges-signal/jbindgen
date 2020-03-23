@@ -1,2 +1,6 @@
 /target
 .idea
+example/HelloWorld.class
+example/HelloWorld.h
+example/mylib/target
+example/mylib/jniffi.rs
